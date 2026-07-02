@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>연금·ISA 포트폴리오 & 매수 툴 | 유앤김 자산관리</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+  * { box-sizing: border-box; }
+  body { font-family: 'Noto Sans KR', sans-serif; background: #07080d; color: #e2e2ef; margin: 0; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0f1018; }
+  ::-webkit-scrollbar-thumb { background: #2a2b3d; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #c9a227; }
+  .gold { color: #c9a227; }
+  .gold-bg { background: linear-gradient(135deg, #c9a227, #f0c968); }
+  .card { background: #111220; border: 1px solid #1e1f2e; border-radius: 12px; }
+  .card-glow { box-shadow: 0 0 0 1px #c9a22720, 0 4px 24px #00000060; }
+  .tab-active { background: linear-gradient(135deg, #c9a22730, #c9a22710); border-bottom: 2px solid #c9a227; color: #f0c968; }
+  .tab-inactive { color: #6666aa; border-bottom: 2px solid transparent; }
+  .tab-inactive:hover { color: #c9a227; background: #1a1b2a; }
+  .price-input { background: #1e1f2e; border: 1.5px solid #c9a22770; border-radius: 8px; color: #f0f0ff; text-align: right; padding: 6px 10px; width: 100%; font-size: 14px; }
+  .price-input:focus { outline: none; border-color: #c9a227; box-shadow: 0 0 0 3px #c9a22720; }
+  .price-input::placeholder { color: #44445a; }
+  .badge-tax { background: #1e3a1e; color: #4ade80; border: 1px solid #2a542a; }
+  .badge-notax { background: #2a1e1e; color: #f87171; border: 1px solid #442a2a; }
+  .badge-isa { background: #1e2a3a; color: #60a5fa; border: 1px solid #2a3a54; }
+  .step-box { background: #0d0e18; border: 1px solid #1e1f2e; border-radius: 8px; }
+  .shine { position: relative; overflow: hidden; }
+  .shine::after { content: ''; position: absolute; top: -50%; left: -60%; width: 30%; height: 200%; background: linear-gradient(to right, transparent, rgba(255,255,255,0.03), transparent); transform: skewX(-20deg); pointer-events: none; }
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .modal-bg { background: rgba(5,6,12,0.85); backdrop-filter: blur(4px); }
+  .gradient-header { background: linear-gradient(135deg, #0f1020 0%, #151628 50%, #0f1020 100%); border-bottom: 1px solid #c9a22730; }
+  .account-header-pension1 { background: linear-gradient(135deg, #1a1520 0%, #201828 100%); border-left: 3px solid #c9a227; }
+  .account-header-pension2 { background: linear-gradient(135deg, #151a20 0%, #182028 100%); border-left: 3px solid #60a5fa; }
+  .account-header-irp { background: linear-gradient(135deg, #151820 0%, #181e28 100%); border-left: 3px solid #a78bfa; }
+  .account-header-isa { background: linear-gradient(135deg, #15201a 0%, #182820 100%); border-left: 3px solid #4ade80; }
+  .ratio-bar { height: 6px; border-radius: 3px; background: linear-gradient(90deg, #c9a227, #f0c968); }
+  .sync-btn { background: linear-gradient(135deg, #c9a22720, #c9a22710); border: 1px solid #c9a22750; color: #c9a227; }
+  .sync-btn:hover { background: linear-gradient(135deg, #c9a22740, #c9a22720); }
+  @keyframes pulse-gold { 0%,100% { box-shadow: 0 0 0 0 #c9a22730; } 50% { box-shadow: 0 0 0 6px #c9a22700; } }
+  .pulse-gold { animation: pulse-gold 2s infinite; }
+  .etf-row:hover { background: #1a1b2a; }
+  .total-chip { background: linear-gradient(135deg, #c9a227, #e8b830); color: #000; font-weight: 700; border-radius: 20px; padding: 4px 14px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+const fmt = (n) => n == null || isNaN(n) ? '—' : Math.round(n).toLocaleString('ko-KR');
+const fmtW = (n) => fmt(n) + '원';
+const fmtP = (n) => n == null ? '—' : n.toFixed(1) + '%';
+
+const INITIAL_DATA = {
+  title: '연금·ISA 통합 포트폴리오',
+  owner: '유앤김 자산관리',
+  totalMonthly: 3166700,
+  totalAnnual: 38000400,
+  taxSaving: 1485000,
+  totalNetSaving: 2115000,
+  accounts: [
+    {
+      id: 'pension1',
+      name: '개인연금 1',
+      subtitle: '세액공제 계좌',
+      color: '#c9a227',
+      colorClass: 'pension1',
+      monthly: 500000,
+      annual: 6000000,
+      taxDeductible: true,
+      taxRate: 16.5,
+      taxSaving: 990000,
+      withdrawAge: 55,
+      note: '세액공제 900만원 한도 중 600만원 할당 | 원금+수익 잠김 | 연금소득세 3.3~5.5%',
+      etfs: [
+        { name: 'ACE 미국S&P500', code: '360200', company: '한투운용', ratio: 20, monthly: 100000, type: '미국주식', role: '코어·안정 중심', assetClass: '위험' },
+        { name: 'ACE 미국나스닥100', code: '367380', company: '한투운용', ratio: 70, monthly: 350000, type: '미국주식', role: '코어·기술 성장', assetClass: '위험' },
+        { name: 'SOL 미국배당다우존스', code: '446720', company: '신한운용', ratio: 10, monthly: 50000, type: '배당주', role: '코어·월배당 재투자', assetClass: '배당' },
+      ]
+    },
+    {
+      id: 'pension2',
+      name: '개인연금 2',
+      subtitle: '비세액공제',
+      color: '#60a5fa',
+      colorClass: 'pension2',
+      monthly: 750000,
+      annual: 9000000,
+      taxDeductible: false,
+      taxRate: null,
+      taxSaving: 0,
+      withdrawAge: null,
+      note: '비세액공제 추가납입 | 투자 원금 자유 인출 가능 | 수익 인출 시 16.5% 과세',
+      etfs: [
+        { name: 'KODEX 미국S&P500', code: '379800', company: '삼성운용', ratio: 35, monthly: 262500, type: '미국주식', role: '코어·안정 중심', assetClass: '위험' },
+        { name: 'KODEX 미국나스닥100', code: '379810', company: '삼성운용', ratio: 35, monthly: 262500, type: '미국주식', role: '코어·기술 성장', assetClass: '위험' },
+        { name: 'KODEX 미국배당다우존스', code: '489250', company: '삼성운용', ratio: 30, monthly: 225000, type: '배당주', role: '코어·월배당 재투자', assetClass: '배당' },
+      ]
+    },
+    {
+      id: 'irp',
+      name: 'IRP',
+      subtitle: '세액공제 계좌',
+      color: '#a78bfa',
+      colorClass: 'irp',
+      monthly: 250000,
+      annual: 3000000,
+      taxDeductible: true,
+      taxRate: 16.5,
+      taxSaving: 495000,
+      withdrawAge: 55,
+      note: '위험자산 70% 한도 | 세액공제 900만원 중 300만원 할당 | 매월 25일 적립',
+      etfs: [
+        { name: 'KODEX 미국S&P500', code: '379800', company: '삼성운용', ratio: 35, monthly: 87500, type: '위험자산', role: '코어·안정 중심', assetClass: '위험' },
+        { name: 'KODEX 미국나스닥100', code: '379810', company: '삼성운용', ratio: 35, monthly: 87500, type: '위험자산', role: '코어·기술 성장', assetClass: '위험' },
+        { name: 'SOL 미국배당미국채혼합50', code: '490490', company: '신한운용', ratio: 30, monthly: 75000, type: '혼합(배당+채권)', role: '혼합·채권+성장', assetClass: '안전' },
+      ]
+    },
+    {
+      id: 'isa',
+      name: 'ISA',
+      subtitle: '중개형',
+      color: '#4ade80',
+      colorClass: 'isa',
+      monthly: 1666700,
+      annual: 20000400,
+      taxDeductible: false,
+      taxRate: null,
+      taxSaving: 0,
+      withdrawAge: null,
+      note: '비과세 200만원 | 3년 의무보유 | 만기 후 연금이체 시 납입금액 10% 추가 세액공제',
+      etfs: [
+        { name: 'TIGER 미국나스닥100', code: '133690', company: '미래에셋', ratio: 30, monthly: 500000, type: '미국주식', role: '코어·기술 성장', assetClass: '위험' },
+        { name: 'TIGER 미국S&P500', code: '360750', company: '미래에셋', ratio: 25, monthly: 416700, type: '미국주식', role: '코어·안정 중심', assetClass: '위험' },
+        { name: 'TIGER 미국배당다우존스', code: '458730', company: '미래에셋', ratio: 20, monthly: 333300, type: '배당주', role: '코어·월배당 재투자', assetClass: '배당' },
+        { name: 'KODEX AI반도체핵심장비', code: '471990', company: '삼성운용', ratio: 15, monthly: 250000, type: '테마주', role: '위성·AI 고성장', assetClass: '위험' },
+        { name: 'KODEX 200', code: '069500', company: '삼성운용', ratio: 10, monthly: 166700, type: '국내주식', role: '위성·국내 헤지', assetClass: '위험' },
+      ]
+    },
+  ]
+};
+
+const GIST_KEY = 'pension_gist_config';
+const DATA_KEY = 'pension_portfolio_data';
+const PRICE_KEY = 'pension_prices';
+
+function loadLocal(key, def) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
+}
+function saveLocal(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+
+async function fetchGist(token, gistId) {
+  const r = await fetch(`https://api.github.com/gists/${gistId}`, {
+    headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' }
+  });
+  if (!r.ok) throw new Error('Gist 불러오기 실패');
+  const d = await r.json();
+  const file = d.files['pension_data.json'];
+  if (!file) throw new Error('pension_data.json 파일 없음');
+  return JSON.parse(file.content);
+}
+
+async function saveGist(token, gistId, data) {
+  const body = { files: { 'pension_data.json': { content: JSON.stringify(data, null, 2) } } };
+  if (gistId) {
+    const r = await fetch(`https://api.github.com/gists/${gistId}`, {
+      method: 'PATCH', headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('Gist 저장 실패');
+    return gistId;
+  } else {
+    const r = await fetch('https://api.github.com/gists', {
+      method: 'POST', headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: '연금·ISA 포트폴리오 데이터', public: false, ...body })
+    });
+    if (!r.ok) throw new Error('Gist 생성 실패');
+    const d = await r.json();
+    return d.id;
+  }
+}
+
+function AccountBadge({ account }) {
+  if (account.taxDeductible) return <span className="badge-tax text-xs px-2 py-0.5 rounded-full font-medium">세액공제</span>;
+  if (account.id === 'isa') return <span className="badge-isa text-xs px-2 py-0.5 rounded-full font-medium">비과세</span>;
+  return <span className="badge-notax text-xs px-2 py-0.5 rounded-full font-medium">비세액공제</span>;
+}
+
+function AssetBadge({ cls }) {
+  const m = { '위험': 'bg-red-950 text-red-300 border border-red-900', '배당': 'bg-amber-950 text-amber-300 border border-amber-900', '안전': 'bg-blue-950 text-blue-300 border border-blue-900', '혼합(배당+채권)': 'bg-violet-950 text-violet-300 border border-violet-900' };
+  return <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${m[cls] || 'bg-gray-800 text-gray-300'}`}>{cls}</span>;
+}
+
+function BuyCalculator({ account, prices, onPriceChange }) {
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-1.5 h-5 rounded-full" style={{background: account.color}}></div>
+        <h3 className="font-semibold text-base text-white">매수 계산기</h3>
+        <span className="text-xs text-gray-500 ml-2">현재가 입력 → 매수주식수·금액 자동계산</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-gray-500 text-xs border-b border-gray-800">
+              <th className="text-left pb-2 pr-3 font-medium">종목명</th>
+              <th className="text-center pb-2 px-2 font-medium">코드</th>
+              <th className="text-right pb-2 px-2 font-medium">비중</th>
+              <th className="text-right pb-2 px-2 font-medium">월배정금액</th>
+              <th className="text-right pb-2 px-2 font-medium" style={{color: '#c9a227'}}>▼ 현재가(원)</th>
+              <th className="text-right pb-2 px-2 font-medium">매수주식수</th>
+              <th className="text-right pb-2 px-2 font-medium">실매수금액</th>
+              <th className="text-right pb-2 font-medium">잔여금액</th>
+            </tr>
+          </thead>
+          <tbody>
+            {account.etfs.map((etf, i) => {
+              const price = prices[etf.code] || 0;
+              const shares = price > 0 ? Math.floor(etf.monthly / price) : null;
+              const actual = shares != null ? shares * price : null;
+              const rem = actual != null ? etf.monthly - actual : null;
+              return (
+                <tr key={i} className="etf-row border-b border-gray-900 transition-colors">
+                  <td className="py-2.5 pr-3">
+                    <div className="font-medium text-white text-sm">{etf.name}</div>
+                    <div className="text-xs text-gray-500">{etf.role}</div>
+                  </td>
+                  <td className="py-2.5 px-2 text-center">
+                    <span className="text-xs font-mono bg-gray-900 px-2 py-0.5 rounded text-gray-400">{etf.code}</span>
+                  </td>
+                  <td className="py-2.5 px-2 text-right text-gray-300">{etf.ratio}%</td>
+                  <td className="py-2.5 px-2 text-right font-mono text-gray-200">{fmtW(etf.monthly)}</td>
+                  <td className="py-2.5 px-2">
+                    <input
+                      type="number"
+                      className="price-input pulse-gold"
+                      placeholder="가격 입력"
+                      value={prices[etf.code] || ''}
+                      onChange={e => onPriceChange(etf.code, e.target.value)}
+                    />
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-mono">
+                    {shares != null && shares > 0 ? <span className="text-white font-semibold">{shares.toLocaleString()}주</span> : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-mono">
+                    {actual != null ? <span className="text-green-400">{fmtW(actual)}</span> : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="py-2.5 text-right font-mono">
+                    {rem != null ? <span className={rem > 0 ? 'text-amber-400' : 'text-gray-500'}>{fmtW(rem)}</span> : <span className="text-gray-600">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-gray-700">
+              <td colSpan={3} className="pt-2.5 text-xs text-gray-500 font-medium">합계</td>
+              <td className="pt-2.5 text-right font-mono text-amber-300 font-semibold">{fmtW(account.monthly)}</td>
+              <td></td>
+              <td className="pt-2.5 text-right font-mono text-white font-semibold">
+                {account.etfs.every(e => prices[e.code] > 0) ? account.etfs.reduce((s,e) => s + Math.floor(e.monthly/(prices[e.code]||Infinity)), 0) + '주' : '—'}
+              </td>
+              <td className="pt-2.5 text-right font-mono text-green-400 font-semibold">
+                {account.etfs.every(e => prices[e.code] > 0) ? fmtW(account.etfs.reduce((s,e) => s + Math.floor(e.monthly/(prices[e.code]||Infinity))*(prices[e.code]||0), 0)) : '—'}
+              </td>
+              <td className="pt-2.5 text-right font-mono text-amber-400 font-semibold">
+                {account.etfs.every(e => prices[e.code] > 0) ? fmtW(account.monthly - account.etfs.reduce((s,e) => s + Math.floor(e.monthly/(prices[e.code]||Infinity))*(prices[e.code]||0), 0)) : '—'}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div className="mt-4 p-3 rounded-lg bg-gray-950 border border-gray-800 text-xs text-gray-500 space-y-1">
+        <div>① 노란색 테두리 현재가 셀에 ETF 시장가격(원) 입력</div>
+        <div>② 매수주식수 = INT(월배정금액 ÷ 현재가) · 실매수금액 = 주식수 × 현재가 · 잔여금액 = 배정 - 실매수</div>
+        <div>③ MTS → 계좌 선택 → ETF 코드 6자리 검색 → 주식수 확인 후 시장가 주문</div>
+        <div>④ 잔여금액은 익월 이월 또는 비중 1순위 종목 추가 매수 권장</div>
+      </div>
+    </div>
+  );
+}
+
+function AccountTab({ account, prices, onPriceChange, editMode, onEdit }) {
+  const steps = account.etfs.map((e, i) => `STEP ${i+2}: ${e.name} (${e.code}) → ${fmtW(e.monthly)} 매수`);
+  return (
+    <div className="space-y-5">
+      <div className={`card card-glow p-5 account-header-${account.colorClass}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h2 className="text-xl font-bold text-white">{account.name}</h2>
+              <AccountBadge account={account} />
+              {account.taxDeductible && <span className="text-xs text-green-400 bg-green-950 border border-green-900 px-2 py-0.5 rounded-full">세액공제 {account.taxRate}%</span>}
+            </div>
+            <p className="text-sm text-gray-400">{account.note}</p>
+          </div>
+          {editMode && (
+            <button onClick={() => onEdit(account)} className="text-xs px-3 py-1.5 rounded-lg border border-amber-700 text-amber-400 hover:bg-amber-950 transition-colors">편집</button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: '월 납입액', value: fmtW(account.monthly), color: '#f0c968' },
+            { label: '연간 납입액', value: fmtW(account.annual), color: '#e2e2ef' },
+            { label: '세액공제 절세액', value: account.taxSaving ? fmtW(account.taxSaving) : '해당없음', color: account.taxSaving ? '#4ade80' : '#666' },
+            { label: 'ETF 종목수', value: account.etfs.length + '개', color: '#a78bfa' },
+          ].map((s, i) => (
+            <div key={i} className="bg-black bg-opacity-30 rounded-lg p-3">
+              <div className="text-xs text-gray-500 mb-1">{s.label}</div>
+              <div className="font-bold text-sm" style={{color: s.color}}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-1.5 h-5 rounded-full" style={{background: account.color}}></div>
+          <h3 className="font-semibold text-base text-white">ETF 포트폴리오</h3>
+        </div>
+        <div className="space-y-3">
+          {account.etfs.map((etf, i) => (
+            <div key={i} className="etf-row rounded-lg p-3 border border-gray-900 transition-colors">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 w-4">{i+1}</span>
+                  <span className="font-semibold text-white">{etf.name}</span>
+                  <span className="text-xs font-mono bg-gray-900 px-2 py-0.5 rounded text-gray-400">{etf.code}</span>
+                  <AssetBadge cls={etf.assetClass} />
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-gray-400">{etf.company}</span>
+                  <span className="font-bold" style={{color: account.color}}>{etf.ratio}%</span>
+                  <span className="text-amber-300 font-mono">{fmtW(etf.monthly)}/월</span>
+                </div>
+              </div>
+              <div className="ratio-bar" style={{width: etf.ratio + '%', background: `linear-gradient(90deg, ${account.color}cc, ${account.color})`}}></div>
+              <div className="mt-1 text-xs text-gray-500">{etf.role} · 연간 {fmtW(etf.monthly * 12)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <BuyCalculator account={account} prices={prices} onPriceChange={onPriceChange} />
+
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-1.5 h-5 rounded-full bg-blue-500"></div>
+          <h3 className="font-semibold text-base text-white">월 매수 실행 순서</h3>
+        </div>
+        <div className="space-y-2">
+          <div className="step-box p-3 flex items-start gap-3">
+            <span className="text-xs font-bold text-blue-400 bg-blue-950 border border-blue-900 px-2 py-0.5 rounded whitespace-nowrap">STEP 1</span>
+            <span className="text-sm text-gray-300">증권사 {account.name} 계좌 접속 → 매수 주문 화면 이동</span>
+          </div>
+          {account.etfs.map((etf, i) => (
+            <div key={i} className="step-box p-3 flex items-start gap-3">
+              <span className="text-xs font-bold text-amber-400 bg-amber-950 border border-amber-900 px-2 py-0.5 rounded whitespace-nowrap">STEP {i+2}</span>
+              <span className="text-sm text-gray-300">{etf.name} ({etf.code}) → <strong className="text-white">{fmtW(etf.monthly)}</strong> 매수 (주식모으기/예약주문 활용)</span>
+            </div>
+          ))}
+          <div className="step-box p-3 flex items-start gap-3">
+            <span className="text-xs font-bold text-green-400 bg-green-950 border border-green-900 px-2 py-0.5 rounded whitespace-nowrap">STEP {account.etfs.length+2}</span>
+            <span className="text-sm text-gray-300">총 <strong className="text-amber-300">{fmtW(account.monthly)}</strong> 집행 확인 → 잔고 스크린샷 보관</span>
+          </div>
+          <div className="step-box p-3 bg-amber-950 bg-opacity-20 border-amber-900">
+            <span className="text-xs font-semibold text-amber-400">💡 TIP</span>
+            <span className="text-sm text-gray-400 ml-2">주식모으기(삼성·미래에셋·NH) / 예약주문(대부분 지원) / 매월 자동설정 권장</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ data, prices }) {
+  const allEtfs = [];
+  data.accounts.forEach(a => a.etfs.forEach(e => {
+    const ex = allEtfs.find(x => x.code === e.code && x.company === e.company);
+    if (ex) { ex.accounts.push({ id: a.id, name: a.name, monthly: e.monthly, color: a.color }); ex.totalMonthly += e.monthly; }
+    else allEtfs.push({ ...e, accounts: [{ id: a.id, name: a.name, monthly: e.monthly, color: a.color }], totalMonthly: e.monthly });
+  }));
+  return (
+    <div className="space-y-6">
+      <div className="card card-glow shine p-6" style={{background: 'linear-gradient(135deg, #111220, #151628)'}}>
+        <div className="text-center mb-6">
+          <div className="text-3xl font-bold text-white mb-1">{data.title}</div>
+          <div className="text-sm text-gray-500">{data.owner} · 2026년 7월 기준</div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[
+            { label: '총 월납입액', value: fmtW(data.totalMonthly), sub: '4개 계좌 합산', color: '#f0c968' },
+            { label: '총 연간납입', value: fmtW(data.totalAnnual), sub: '연간 합산', color: '#e2e2ef' },
+            { label: '세액공제 절세', value: fmtW(data.taxSaving), sub: '연금1+IRP 합산', color: '#4ade80' },
+            { label: '총 절세효과', value: fmtW(data.totalNetSaving), sub: '세액공제+ISA비과세', color: '#c9a227' },
+          ].map((s, i) => (
+            <div key={i} className="bg-black bg-opacity-40 rounded-xl p-4 text-center">
+              <div className="text-xs text-gray-500 mb-2">{s.label}</div>
+              <div className="text-lg font-bold" style={{color: s.color}}>{s.value}</div>
+              <div className="text-xs text-gray-600 mt-1">{s.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {data.accounts.map(a => (
+          <div key={a.id} className="card p-4 hover:card-glow transition-all" style={{borderLeft: `3px solid ${a.color}`}}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="font-bold text-white">{a.name}</div>
+                <div className="text-xs text-gray-500">{a.subtitle}</div>
+              </div>
+              <AccountBadge account={a} />
+            </div>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">월납입</span><span className="font-mono font-semibold" style={{color: a.color}}>{fmtW(a.monthly)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">연납입</span><span className="font-mono text-gray-300">{fmtW(a.annual)}</span></div>
+              {a.taxSaving > 0 && <div className="flex justify-between"><span className="text-gray-500">절세</span><span className="font-mono text-green-400">{fmtW(a.taxSaving)}</span></div>}
+              <div className="flex justify-between"><span className="text-gray-500">ETF</span><span className="text-gray-300">{a.etfs.length}종목</span></div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1">
+              {a.etfs.map((e,i) => <span key={i} className="text-xs bg-gray-900 text-gray-400 px-1.5 py-0.5 rounded">{e.code}</span>)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-1.5 h-5 rounded-full gold-bg"></div>
+          <h3 className="font-semibold text-base text-white">ETF 종목 통합 현황</h3>
+          <span className="text-xs text-gray-500">{allEtfs.length}개 ETF · 전 계좌</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-gray-500 border-b border-gray-800">
+                <th className="text-left pb-2 pr-3 font-medium">종목명</th>
+                <th className="text-center pb-2 px-2 font-medium">코드</th>
+                <th className="text-center pb-2 px-2 font-medium">운용사</th>
+                <th className="text-center pb-2 px-2 font-medium">계좌</th>
+                <th className="text-right pb-2 px-2 font-medium">월합계</th>
+                <th className="text-right pb-2 font-medium">연합계</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allEtfs.map((etf, i) => (
+                <tr key={i} className="etf-row border-b border-gray-900 transition-colors">
+                  <td className="py-2.5 pr-3">
+                    <div className="font-medium text-white">{etf.name}</div>
+                    <div className="text-xs text-gray-500">{etf.role}</div>
+                  </td>
+                  <td className="py-2.5 px-2 text-center font-mono text-xs text-gray-400">{etf.code}</td>
+                  <td className="py-2.5 px-2 text-center text-xs text-gray-400">{etf.company}</td>
+                  <td className="py-2.5 px-2">
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      {etf.accounts.map((a, j) => (
+                        <span key={j} className="text-xs px-1.5 py-0.5 rounded font-medium" style={{background: a.color + '20', color: a.color, border: `1px solid ${a.color}40`}}>{a.name}</span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-mono text-amber-300">{fmtW(etf.totalMonthly)}</td>
+                  <td className="py-2.5 text-right font-mono text-gray-300">{fmtW(etf.totalMonthly * 12)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-1.5 h-5 rounded-full bg-green-500"></div>
+          <h3 className="font-semibold text-base text-white">연간 절세 효과</h3>
+        </div>
+        <div className="space-y-2">
+          {[
+            { label: '개인연금 1 세액공제', amount: 990000, rate: '16.5%', note: '연납입 600만 × 16.5% (총급여 5,000만원 이하)' },
+            { label: 'IRP 세액공제', amount: 495000, rate: '16.5%', note: '연납입 300만 × 16.5% (총급여 5,000만원 이하)' },
+            { label: 'ISA 만기이체 추가공제', amount: 300000, rate: '10.0%', note: '만기 후 연금계좌 이체 시' },
+            { label: 'ISA 비과세 혜택', amount: 330000, rate: '—', note: '수익 200만 × 15.4% 절감' },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-gray-950 border border-gray-900">
+              <div>
+                <div className="text-sm text-gray-200">{item.label}</div>
+                <div className="text-xs text-gray-500">{item.note}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-bold text-green-400 font-mono">{fmtW(item.amount)}</div>
+                {item.rate !== '—' && <div className="text-xs text-gray-500">{item.rate}</div>}
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center justify-between p-3 rounded-lg border" style={{background: 'linear-gradient(135deg, #1a2a1a, #1e2a1e)', borderColor: '#2a542a'}}>
+            <div className="font-semibold text-white">연간 총 절세금액</div>
+            <div className="total-chip">{fmtW(data.totalNetSaving)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditModal({ account, onSave, onClose }) {
+  const [etfs, setEtfs] = useState(account.etfs.map(e => ({...e})));
+  const [monthly, setMonthly] = useState(account.monthly);
+  const total = etfs.reduce((s, e) => s + Number(e.ratio || 0), 0);
+
+  const update = (i, key, val) => setEtfs(prev => prev.map((e, j) => j === i ? {...e, [key]: key === 'ratio' || key === 'monthly' ? Number(val) : val} : e));
+
+  const handleSave = () => {
+    const updated = etfs.map(e => ({...e, monthly: Math.round(monthly * e.ratio / 100)}));
+    onSave({...account, monthly: Number(monthly), etfs: updated});
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-bg" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="card card-glow w-full max-w-2xl max-h-screen overflow-y-auto p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold text-white">{account.name} 포트폴리오 편집</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-white text-xl">✕</button>
+        </div>
+        <div className="mb-4">
+          <label className="text-xs text-gray-500 block mb-1">월 납입액 (원)</label>
+          <input type="number" value={monthly} onChange={e => setMonthly(e.target.value)} className="price-input w-48" />
+        </div>
+        <div className="space-y-3 mb-5">
+          {etfs.map((etf, i) => (
+            <div key={i} className="bg-gray-950 border border-gray-800 rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-white">
+                <span className="text-gray-500 w-4">{i+1}</span>
+                <input value={etf.name} onChange={e => update(i, 'name', e.target.value)} className="bg-transparent border-b border-gray-700 focus:border-amber-500 outline-none text-white flex-1 px-1" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-gray-500">코드</label>
+                  <input value={etf.code} onChange={e => update(i, 'code', e.target.value)} className="price-input text-left mt-0.5" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">운용사</label>
+                  <input value={etf.company} onChange={e => update(i, 'company', e.target.value)} className="price-input text-left mt-0.5" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">비중(%)</label>
+                  <input type="number" value={etf.ratio} onChange={e => update(i, 'ratio', e.target.value)} className="price-input mt-0.5" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">역할·투자포인트</label>
+                <input value={etf.role} onChange={e => update(i, 'role', e.target.value)} className="price-input text-left mt-0.5" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className={`text-sm mb-4 ${Math.abs(total - 100) < 0.1 ? 'text-green-400' : 'text-red-400'}`}>
+          비중 합계: {total}% {Math.abs(total - 100) > 0.1 ? '(100%가 되어야 합니다)' : '✓'}
+        </div>
+        <div className="flex gap-3">
+          <button onClick={handleSave} disabled={Math.abs(total-100) > 0.1} className="flex-1 py-2.5 rounded-lg font-semibold text-black gold-bg disabled:opacity-40">저장</button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-lg font-semibold text-gray-400 bg-gray-900 border border-gray-700">취소</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsModal({ gistConfig, onSave, onClose, onSync, syncStatus }) {
+  const [token, setToken] = useState(gistConfig.token || '');
+  const [gistId, setGistId] = useState(gistConfig.gistId || '');
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-bg" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="card card-glow w-full max-w-lg p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold text-white">설정 · Gist 동기화</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-white text-xl">✕</button>
+        </div>
+        <div className="space-y-4 mb-5">
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">GitHub Personal Access Token</label>
+            <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="ghp_xxxxxxxxxxxx" className="price-input text-left w-full" />
+            <p className="text-xs text-gray-600 mt-1">github.com → Settings → Developer settings → Personal access tokens → Gist 권한 필요</p>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Gist ID (첫 저장 시 자동생성)</label>
+            <input type="text" value={gistId} onChange={e => setGistId(e.target.value)} placeholder="비워두면 첫 저장 시 자동 생성" className="price-input text-left w-full" />
+          </div>
+          <div className="p-3 rounded-lg bg-blue-950 bg-opacity-50 border border-blue-900">
+            <p className="text-xs text-blue-300">💡 Token과 Gist ID를 설정하면 PC·모바일에서 현재가 데이터가 자동으로 연동됩니다. Token은 이 기기의 localStorage에만 저장되며 외부로 전송되지 않습니다.</p>
+          </div>
+        </div>
+        {syncStatus && <div className={`mb-3 p-2 rounded text-xs ${syncStatus.type === 'error' ? 'bg-red-950 text-red-300' : syncStatus.type === 'success' ? 'bg-green-950 text-green-300' : 'bg-gray-900 text-gray-400'}`}>{syncStatus.msg}</div>}
+        <div className="flex gap-3">
+          <button onClick={() => onSave({token, gistId})} className="flex-1 py-2.5 rounded-lg font-semibold text-black gold-bg">저장</button>
+          {token && <button onClick={() => onSync(token, gistId)} className="flex-1 py-2.5 rounded-lg font-semibold sync-btn">Gist에서 불러오기</button>}
+          <button onClick={onClose} className="px-4 py-2.5 rounded-lg text-gray-400 bg-gray-900 border border-gray-700">닫기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const TABS = [
+  { id: 'dashboard', label: '📊 대시보드' },
+  { id: 'pension1', label: '개인연금 1' },
+  { id: 'pension2', label: '개인연금 2' },
+  { id: 'irp', label: 'IRP' },
+  { id: 'isa', label: 'ISA' },
+];
+
+function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [data, setData] = useState(() => loadLocal(DATA_KEY, INITIAL_DATA));
+  const [prices, setPrices] = useState(() => loadLocal(PRICE_KEY, {}));
+  const [gistConfig, setGistConfig] = useState(() => loadLocal(GIST_KEY, {}));
+  const [showSettings, setShowSettings] = useState(false);
+  const [editAccount, setEditAccount] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { saveLocal(DATA_KEY, data); }, [data]);
+  useEffect(() => { saveLocal(PRICE_KEY, prices); }, [prices]);
+
+  const handlePriceChange = useCallback((code, val) => {
+    setPrices(prev => ({...prev, [code]: Number(val) || 0}));
+  }, []);
+
+  const handleSaveGist = async () => {
+    if (!gistConfig.token) { setShowSettings(true); return; }
+    setSaving(true);
+    setSyncStatus({type: 'info', msg: 'Gist에 저장 중...'});
+    try {
+      const payload = { data, prices, savedAt: new Date().toISOString() };
+      const newId = await saveGist(gistConfig.token, gistConfig.gistId, payload);
+      if (newId !== gistConfig.gistId) {
+        const nc = {...gistConfig, gistId: newId};
+        setGistConfig(nc); saveLocal(GIST_KEY, nc);
+      }
+      setSyncStatus({type: 'success', msg: `✓ Gist 저장 완료 (ID: ${newId.slice(0,8)}...)`});
+    } catch(e) { setSyncStatus({type: 'error', msg: '저장 실패: ' + e.message}); }
+    setSaving(false);
+    setTimeout(() => setSyncStatus(null), 4000);
+  };
+
+  const handleLoadGist = async (token, gistId) => {
+    if (!gistId) { setSyncStatus({type: 'error', msg: 'Gist ID를 먼저 입력해주세요.'}); return; }
+    setSyncStatus({type: 'info', msg: 'Gist에서 불러오는 중...'});
+    try {
+      const payload = await fetchGist(token, gistId);
+      if (payload.data) { setData(payload.data); saveLocal(DATA_KEY, payload.data); }
+      if (payload.prices) { setPrices(payload.prices); saveLocal(PRICE_KEY, payload.prices); }
+      setSyncStatus({type: 'success', msg: `✓ 동기화 완료 (${payload.savedAt ? new Date(payload.savedAt).toLocaleString('ko-KR') : ''})`});
+    } catch(e) { setSyncStatus({type: 'error', msg: '불러오기 실패: ' + e.message}); }
+  };
+
+  const handleSaveSettings = (cfg) => {
+    setGistConfig(cfg); saveLocal(GIST_KEY, cfg);
+    setSyncStatus({type: 'success', msg: '설정이 저장되었습니다.'});
+    setShowSettings(false);
+    setTimeout(() => setSyncStatus(null), 3000);
+  };
+
+  const handleEditSave = (updated) => {
+    setData(prev => ({...prev, accounts: prev.accounts.map(a => a.id === updated.id ? updated : a)}));
+    setEditAccount(null);
+  };
+
+  const handleReset = () => {
+    if (confirm('포트폴리오를 초기값으로 되돌리시겠습니까?')) { setData(INITIAL_DATA); saveLocal(DATA_KEY, INITIAL_DATA); }
+  };
+
+  const activeAccount = data.accounts.find(a => a.id === activeTab);
+
+  return (
+    <div className="min-h-screen">
+      <header className="gradient-header sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="gold-bg text-black font-bold text-xs px-2.5 py-1 rounded-lg">연금·ISA</div>
+              <div>
+                <div className="text-white font-bold text-sm hidden sm:block">포트폴리오 & 매수 툴</div>
+                <div className="text-gray-500 text-xs hidden sm:block">유앤김 자산관리</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {syncStatus && (
+                <div className={`text-xs px-3 py-1 rounded-full ${syncStatus.type === 'error' ? 'bg-red-950 text-red-300' : syncStatus.type === 'success' ? 'bg-green-950 text-green-300' : 'bg-gray-800 text-gray-400'}`}>
+                  {syncStatus.msg}
+                </div>
+              )}
+              <button onClick={handleSaveGist} disabled={saving} className="sync-btn text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                <span>{saving ? '저장 중...' : '☁ Gist 저장'}</span>
+              </button>
+              <button onClick={() => setEditMode(v => !v)} className={`text-xs px-3 py-1.5 rounded-lg transition-colors border ${editMode ? 'border-amber-500 text-amber-400 bg-amber-950' : 'border-gray-700 text-gray-400'}`}>
+                {editMode ? '✓ 편집모드' : '편집'}
+              </button>
+              <button onClick={() => setShowSettings(true)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:text-white transition-colors">⚙</button>
+            </div>
+          </div>
+          <div className="flex gap-1 mt-3 overflow-x-auto pb-0.5">
+            {TABS.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all whitespace-nowrap ${activeTab === tab.id ? 'tab-active' : 'tab-inactive'}`}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-4 py-6">
+        {activeTab === 'dashboard' && <Dashboard data={data} prices={prices} />}
+        {activeAccount && (
+          <AccountTab account={activeAccount} prices={prices} onPriceChange={handlePriceChange} editMode={editMode} onEdit={setEditAccount} />
+        )}
+        {editMode && activeTab === 'dashboard' && (
+          <div className="mt-4 p-4 card border-amber-900 border">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-amber-400">편집 모드 활성화 — 각 계좌 탭에서 포트폴리오를 수정할 수 있습니다.</p>
+              <button onClick={handleReset} className="text-xs text-red-400 hover:text-red-300 border border-red-900 px-3 py-1.5 rounded-lg">초기값으로 리셋</button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {editAccount && <EditModal account={editAccount} onSave={handleEditSave} onClose={() => setEditAccount(null)} />}
+      {showSettings && (
+        <SettingsModal gistConfig={gistConfig} onSave={handleSaveSettings} onClose={() => setShowSettings(false)}
+          onSync={handleLoadGist} syncStatus={syncStatus} />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
