@@ -764,8 +764,8 @@ function cfhubGetPin(){
   return localStorage.getItem(CFHUB_PIN_KEY);
 }
 async function exportIrpToCashflow(){
-  const lastP=localStorage.getItem('cfhub_irp_principal')||'80000';
-  const pIn=prompt('캐시플로우 [IRP연금]에 반영할 IRP 평가액(만원)을 입력하세요.\n예: 8억 = 80000',lastP);
+  const lastP=localStorage.getItem('cfhub_irp_principal')||'60000';
+  const pIn=prompt('캐시플로우 [IRP연금]에 반영할 IRP 평가액(만원)을 입력하세요.\n예: 6억 = 60000',lastP);
   if(pIn===null)return;
   const principal=Math.round(parseFloat(pIn));
   if(isNaN(principal)||principal<=0){alert('금액이 올바르지 않습니다');return;}
