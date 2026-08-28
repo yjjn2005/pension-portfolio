@@ -744,5 +744,50 @@ function App() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
+
+<!-- ===================== 100세 캐시플로우 연동 (cashflow-hub-api) ===================== -->
+<button id="cfhubBtn" onclick="exportIrpToCashflow()"
+ title="100세 캐시플로우 IRP 탭으로 내보내기"
+ style="position:fixed;right:16px;bottom:16px;z-index:9999;padding:11px 16px;border:none;border-radius:999px;
+ background:linear-gradient(135deg,#c9a227,#f0c968);color:#1a1405;font-weight:700;font-size:13px;cursor:pointer;
+ box-shadow:0 6px 20px rgba(201,162,39,.45);font-family:'Noto Sans KR',sans-serif">🔗 캐시플로우 내보내기</button>
+<script>
+const CFHUB_API='https://cashflow-hub-api.yjjn2005.workers.dev';
+const CFHUB_PIN_KEY='cfhub_pin';
+function cfhubGetPin(){
+  let p=localStorage.getItem(CFHUB_PIN_KEY);
+  if(!p){
+    p=prompt('100세 캐시플로우 동기화 PIN을 입력하세요 (캐시플로우 앱과 동일)');
+    if(p&&p.trim().length>=4)localStorage.setItem(CFHUB_PIN_KEY,p.trim());
+    else return null;
+  }
+  return localStorage.getItem(CFHUB_PIN_KEY);
+}
+async function exportIrpToCashflow(){
+  const lastP=localStorage.getItem('cfhub_irp_principal')||'80000';
+  const pIn=prompt('캐시플로우 [IRP연금]에 반영할 IRP 평가액(만원)을 입력하세요.\n예: 8억 = 80000',lastP);
+  if(pIn===null)return;
+  const principal=Math.round(parseFloat(pIn));
+  if(isNaN(principal)||principal<=0){alert('금액이 올바르지 않습니다');return;}
+  const lastR=localStorage.getItem('cfhub_irp_rate')||'4';
+  const rIn=prompt('연 운용수익률(%)을 입력하세요',lastR);
+  if(rIn===null)return;
+  const ratePct=parseFloat(rIn);
+  if(isNaN(ratePct)||ratePct<-10||ratePct>30){alert('수익률이 올바르지 않습니다');return;}
+  const pin=cfhubGetPin(); if(!pin)return;
+  try{
+    const res=await fetch(CFHUB_API+'/feed/'+encodeURIComponent(pin)+'/irp',{
+      method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({principal:principal,rate:Math.round(ratePct*10)/1000,src:'pension-portfolio'})});
+    if(!res.ok)throw new Error(res.status);
+    localStorage.setItem('cfhub_irp_principal',String(principal));
+    localStorage.setItem('cfhub_irp_rate',String(ratePct));
+    alert('✅ 캐시플로우로 내보냈습니다\n(원금 '+principal.toLocaleString('ko-KR')+'만 · 수익률 '+ratePct+'%)');
+  }catch(e){
+    alert('❌ 내보내기 실패 — 네트워크/PIN 확인');
+    localStorage.removeItem(CFHUB_PIN_KEY);
+  }
+}
+</script>
 </body>
 </html>
