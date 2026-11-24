@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>연금·ISA 포트폴리오 & 매수 툴 | 유앤김 자산관리</title>
+<title>연금·IRP·ISA 포트폴리오 및 매수 툴 | 유앤김 자산관리</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -59,7 +59,7 @@ const fmtW = (n) => fmt(n) + '원';
 const fmtP = (n) => n == null ? '—' : n.toFixed(1) + '%';
 
 const INITIAL_DATA = {
-  title: '연금·ISA 통합 포트폴리오',
+  title: '연금·IRP·ISA 포트폴리오 및 매수 툴',
   owner: '유앤김 자산관리',
   totalMonthly: 3166700,
   totalAnnual: 38000400,
@@ -790,7 +790,7 @@ function GuideWhy() {
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => { const h = (location.hash || '').slice(1); return ['dashboard','pension1','pension2','irp','isa','manual','easy','why'].includes(h) ? h : 'dashboard'; });
-  const [data, setData] = useState(() => loadLocal(DATA_KEY, INITIAL_DATA));
+  const [data, setData] = useState(() => { const d = loadLocal(DATA_KEY, INITIAL_DATA); if (d.title === '연금·ISA 통합 포트폴리오') d.title = INITIAL_DATA.title; return d; });
   const [prices, setPrices] = useState(() => loadLocal(PRICE_KEY, {}));
   const [gistConfig, setGistConfig] = useState(() => loadLocal(GIST_KEY, {}));
   const [showSettings, setShowSettings] = useState(false);
@@ -829,7 +829,7 @@ function App() {
     setSyncStatus({type: 'info', msg: 'Gist에서 불러오는 중...'});
     try {
       const payload = await fetchGist(token, gistId);
-      if (payload.data) { setData(payload.data); saveLocal(DATA_KEY, payload.data); }
+      if (payload.data) { if (payload.data.title === '연금·ISA 통합 포트폴리오') payload.data.title = INITIAL_DATA.title; setData(payload.data); saveLocal(DATA_KEY, payload.data); }
       if (payload.prices) { setPrices(payload.prices); saveLocal(PRICE_KEY, payload.prices); }
       setSyncStatus({type: 'success', msg: `✓ 동기화 완료 (${payload.savedAt ? new Date(payload.savedAt).toLocaleString('ko-KR') : ''})`});
     } catch(e) { setSyncStatus({type: 'error', msg: '불러오기 실패: ' + e.message}); }
@@ -859,9 +859,9 @@ function App() {
         <div className="max-w-6xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="gold-bg text-black font-bold text-xs px-2.5 py-1 rounded-lg">연금·ISA</div>
+              <div className="gold-bg text-black font-bold text-xs px-2.5 py-1 rounded-lg">연금·IRP·ISA</div>
               <div>
-                <div className="text-white font-bold text-sm hidden sm:block">포트폴리오 & 매수 툴</div>
+                <div className="text-white font-bold text-sm hidden sm:block">포트폴리오 및 매수 툴</div>
                 <div className="text-gray-500 text-xs hidden sm:block">유앤김 자산관리</div>
               </div>
             </div>
@@ -967,3 +967,4 @@ async function exportIrpToCashflow(){
 </script>
 </body>
 </html>
+
